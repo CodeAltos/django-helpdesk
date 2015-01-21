@@ -9,6 +9,7 @@ views/staff.py - The bulk of the application - provides most business logic and
 
 from datetime import datetime, timedelta
 import sys
+import re
 
 from django.conf import settings
 try:
@@ -346,7 +347,19 @@ def update_ticket(request, ticket_id, public=False):
     # if comment contains some django code, like "why does {% if bla %} crash",
     # then the following line will give us a crash, since django expects {% if %}
     # to be closed with an {% endif %} tag.
-    comment = loader.get_template_from_string(comment).render(Context(context))
+    orig_comment = comment
+    comment = comment.replace("%}", "|{}|").replace("{%", "{% templatetag openblock %}").replace("|{}|", "{% templatetag closeblock %}")
+    # next, replace all {{<x>}} except those in the form {{ ticket.* }} and {{ queue.* }}
+    pattern = re.compile(r'\{\{\s*(?!ticket\.[a-zA-Z0-9_\.]*)(?!queue\.[a-zA-Z0-9_.]*)[a-zA-Z0-9_\.]*\s*\}\}')
+    tvars = pattern.findall(comment)
+    for tvar in tvars:
+        torep = tvar.replace("{{", "{% templatetag openvariable %}").replace("}}", "{% templatetag closevariable %}")
+        comment = comment.replace(tvar, torep)
+    # if all else fails, render this as a plaintext instead of throwing a 502
+    try:
+        comment = loader.get_template_from_string(comment).render(Context(context))
+    except:
+        comment = orig_comment
 
     if owner is -1 and ticket.assigned_to:
         owner = ticket.assigned_to.id

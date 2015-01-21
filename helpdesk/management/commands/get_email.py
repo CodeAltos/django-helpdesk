@@ -150,7 +150,7 @@ def process_queue(q, quiet=False):
                 ticket = ticket_from_message(message=data[0][1], queue=q, quiet=quiet)
                 if ticket:
                     server.store(num, '+FLAGS', '\\Deleted')
-        
+
         server.expunge()
         server.close()
         server.logout()
@@ -259,6 +259,9 @@ def ticket_from_message(message, queue, quiet):
         priority = 2
 
     if ticket == None:
+        # trim subject if len > 200
+        if len(subject) > 200:
+            subject = subject[:197]+"..."
         t = Ticket(
             title=subject,
             queue=queue,
@@ -286,7 +289,7 @@ def ticket_from_message(message, queue, quiet):
     if t.status == Ticket.REOPENED_STATUS:
         f.new_status = Ticket.REOPENED_STATUS
         f.title = _('Ticket Re-Opened by E-Mail Received from %(sender_email)s' % {'sender_email': sender_email})
-    
+
     f.save()
 
     if not quiet:
